@@ -179,7 +179,8 @@ public class FinalClassCheck
     private void visitCtor(DetailAST ast) {
         if (!ScopeUtil.isInEnumBlock(ast) && !ScopeUtil.isInRecordBlock(ast)) {
             final DetailAST modifiers = ast.findFirstToken(TokenTypes.MODIFIERS);
-            if (modifiers.findFirstToken(TokenTypes.LITERAL_PRIVATE) == null) {
+            // Add null check for compact source files
+            if (modifiers != null && modifiers.findFirstToken(TokenTypes.LITERAL_PRIVATE) == null) {
                 // Can be only of type ClassDesc, preceding if statements guarantee it.
                 final ClassDesc desc = (ClassDesc) typeDeclarations.getFirst();
                 desc.registerNonPrivateCtor();
@@ -330,7 +331,12 @@ public class FinalClassCheck
      * @return qualified name of a type declaration
      */
     private String extractQualifiedTypeName(DetailAST typeDeclarationAst) {
-        final String className = typeDeclarationAst.findFirstToken(TokenTypes.IDENT).getText();
+        // Add null check for compact source files
+        final DetailAST ident = typeDeclarationAst.findFirstToken(TokenTypes.IDENT);
+        if (ident == null) {
+            return "";
+        }
+        final String className = ident.getText();
         String outerTypeDeclarationQualifiedName = null;
         if (!typeDeclarations.isEmpty()) {
             outerTypeDeclarationQualifiedName = typeDeclarations.peek().getQualifiedName();
@@ -350,7 +356,11 @@ public class FinalClassCheck
         String superClassName = null;
         final DetailAST classExtend = classAst.findFirstToken(TokenTypes.EXTENDS_CLAUSE);
         if (classExtend != null) {
-            superClassName = CheckUtil.extractQualifiedName(classExtend.getFirstChild());
+            // Add null check for compact source files
+            final DetailAST firstChild = classExtend.getFirstChild();
+            if (firstChild != null) {
+                superClassName = CheckUtil.extractQualifiedName(firstChild);
+            }
         }
         return superClassName;
     }
@@ -504,11 +514,24 @@ public class FinalClassCheck
         private ClassDesc(String qualifiedName, int depth, DetailAST classAst) {
             super(qualifiedName, depth, classAst);
             final DetailAST modifiers = classAst.findFirstToken(TokenTypes.MODIFIERS);
-            declaredAsFinal = modifiers.findFirstToken(TokenTypes.FINAL) != null;
-            declaredAsAbstract = modifiers.findFirstToken(TokenTypes.ABSTRACT) != null;
-            declaredAsPrivate = modifiers.findFirstToken(TokenTypes.LITERAL_PRIVATE) != null;
-            hasDeclaredConstructor =
-                    classAst.getLastChild().findFirstToken(TokenTypes.CTOR_DEF) == null;
+            // Add null check for compact source files
+            if (modifiers != null) {
+                declaredAsFinal = modifiers.findFirstToken(TokenTypes.FINAL) != null;
+                declaredAsAbstract = modifiers.findFirstToken(TokenTypes.ABSTRACT) != null;
+                declaredAsPrivate = modifiers.findFirstToken(TokenTypes.LITERAL_PRIVATE) != null;
+            } else {
+                declaredAsFinal = false;
+                declaredAsAbstract = false;
+                declaredAsPrivate = false;
+            }
+            
+            // Add null check for getLastChild() in compact source files
+            final DetailAST lastChild = classAst.getLastChild();
+            if (lastChild != null) {
+                hasDeclaredConstructor = lastChild.findFirstToken(TokenTypes.CTOR_DEF) == null;
+            } else {
+                hasDeclaredConstructor = true;
+            }
         }
 
         /** Adds non-private ctor. */
